@@ -1,49 +1,35 @@
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
+import org.springframework.security.web.authentication.AbstractAuthenticationFilter;
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
+import org.springframework.security.web.server.authentication.ServerAuthenticationConverterSuccessHandler;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-public class JwtAuthenticationFilter extends AuthenticationWebFilter {
+public class JwtAuthenticationFilter extends AbstractAuthenticationFilter {
 
-    public JwtAuthenticationFilter(AuthenticationManager authenticationManager) {
-        super((ReactiveAuthenticationManager) authenticationManager);
-        setServerAuthenticationConverter(new JwtAuthenticationConverter());
+    private final ReactiveAuthenticationManager authenticationManager;
+    private final ServerAuthenticationConverter bearerTokenConverter;
+
+    public JwtAuthenticationFilter(ReactiveAuthenticationManager authenticationManager) {
+        super(authenticationManager);
+        this.authenticationManager = authenticationManager;
+        this.bearerTokenConverter = new ServerBearerTokenAuthenticationConverter();
+        setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.anyExchange());
+        setAuthenticationSuccessHandler(new ServerAuthenticationConverterSuccessHandler(bearerTokenConverter));
     }
-}
-
-class JwtAuthenticationConverter implements ServerAuthenticationConverter {
 
     @Override
-    public Mono<Authentication> convert(ServerWebExchange exchange) {
-        // Extract the JWT token from the request and validate it
-        // You can use the jjwt library or any other JWT library of your choice
-        // Extract the user details from the token and create an Authentication object
-        // For example:
-        String jwtToken = extractJwtToken(exchange.getRequest());
-        UserDetails userDetails = extractUserDetailsFromToken(jwtToken);
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                userDetails, null, userDetails.getAuthorities());
-        return Mono.just(authentication);
-    }
-}
-
-class JwtAuthenticationProvider extends AbstractReactiveJwtAuthenticationManager {
-
-    public JwtAuthenticationProvider() {
-        setJwtDecoder(jwtDecoder());
+    public Mono<Void> filter(ServerWebExchange exchange, org.springframework.web.filter.reactive.HiddenHttpMethodFilter.WebFilterChain chain) {
+        return super.filter(exchange, chain);
     }
 
-    private ReactiveJwtDecoder jwtDecoder() {
-        // Create a JWT decoder with your secret or public key
-        // For example:
-        String secretKey = "your-secret-key";
-        JwtParser jwtParser = Jwts.parserBuilder()
-                .setSigningKey(Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8)))
-                .build();
-        return (token) -> Mono.just(jwtParser.parseClaimsJws(token.getTokenValue()).getBody());
+    @Override
+    protected Mono<Authentication> filter(ServerWebExchange exchange) {
+        return bearerTokenConverter.convert(exchange)
+                .flatMap(authentication -> authenticationManager.authenticate(authentication))
+                .switchIfEmpty(Mono.empty());
     }
 }

@@ -1,23 +1,28 @@
-public class JwtAuthenticationFilter extends AbstractAuthenticationFilter {
+import org.springframework.security.authentication.ReactiveAuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.server.WebFilterExchange;
+import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
+import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
+import org.springframework.security.web.server.context.WebSessionServerSecurityContextRepository;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
+import reactor.core.publisher.Mono;
 
-    private final ReactiveAuthenticationManager authenticationManager;
+import java.util.List;
 
-    public JwtAuthenticationFilter(ReactiveAuthenticationManager authenticationManager) {
+public class JwtAuthenticationFilter extends AuthenticationWebFilter {
+
+    public JwtAuthenticationFilter(ReactiveAuthenticationManager authenticationManager,
+                                   ServerAuthenticationConverter authenticationConverter) {
         super(authenticationManager);
-        this.authenticationManager = authenticationManager;
+        setServerAuthenticationConverter(authenticationConverter);
+        setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.anyExchange());
+        setSecurityContextRepository(new WebSessionServerSecurityContextRepository());
     }
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        return super.filter(exchange, chain);
+    protected Mono<Void> onAuthenticationSuccess(Authentication authentication, WebFilterExchange exchange) {
+        return super.onAuthenticationSuccess(authentication, exchange);
     }
-
-    @Override
-    protected Mono<Authentication> filterInternal(ServerWebExchange exchange) {
-        return ServerHttpBearerAuthenticationConverter
-                .authenticate(exchange)
-                .flatMap(authentication -> authenticationManager.authenticate(authentication))
-                .switchIfEmpty(Mono.empty());
-    }
-
 }

@@ -1,35 +1,43 @@
-import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.web.authentication.AbstractAuthenticationFilter;
-import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
-import org.springframework.security.web.server.authentication.ServerAuthenticationConverterSuccessHandler;
-import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
-import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
-
-public class JwtAuthenticationFilter extends AbstractAuthenticationFilter {
-
-    private final ReactiveAuthenticationManager authenticationManager;
-    private final ServerAuthenticationConverter bearerTokenConverter;
-
-    public JwtAuthenticationFilter(ReactiveAuthenticationManager authenticationManager) {
-        super(authenticationManager);
-        this.authenticationManager = authenticationManager;
-        this.bearerTokenConverter = new ServerBearerTokenAuthenticationConverter();
-        setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.anyExchange());
-        setAuthenticationSuccessHandler(new ServerAuthenticationConverterSuccessHandler(bearerTokenConverter));
-    }
+public class JwtAuthenticationManager implements ReactiveAuthenticationManager {
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, org.springframework.web.filter.reactive.HiddenHttpMethodFilter.WebFilterChain chain) {
-        return super.filter(exchange, chain);
+    public Mono<Authentication> authenticate(Authentication authentication) {
+        if (authentication instanceof JwtAuthenticationToken) {
+            JwtAuthenticationToken jwtAuthenticationToken = (JwtAuthenticationToken) authentication;
+            String token = jwtAuthenticationToken.getToken();
+
+            if (isValidToken(token)) {
+                // Extraer información del token y construir el objeto de autenticación
+                // Puedes usar una biblioteca como jjwt para validar y decodificar el token
+                // y luego construir un objeto de autenticación con los detalles necesarios
+
+                // Ejemplo:
+                String username = extractUsernameFromToken(token);
+                List<GrantedAuthority> authorities = extractAuthoritiesFromToken(token);
+
+                UserDetails userDetails = new User(username, "", authorities);
+                return Mono.just(new UsernamePasswordAuthenticationToken(userDetails, token, authorities));
+            } else {
+                return Mono.empty(); // Token inválido, la autenticación falla
+            }
+        }
+
+        return Mono.empty(); // No se puede autenticar con otros tipos de Authentication
     }
 
-    @Override
-    protected Mono<Authentication> filter(ServerWebExchange exchange) {
-        return bearerTokenConverter.convert(exchange)
-                .flatMap(authentication -> authenticationManager.authenticate(authentication))
-                .switchIfEmpty(Mono.empty());
+    private boolean isValidToken(String token) {
+        // Lógica para validar la firma y la validez del token JWT
+        // Puedes usar una biblioteca como jjwt para realizar estas validaciones
+        // y devolver true si el token es válido, o false si no lo es
+    }
+
+    private String extractUsernameFromToken(String token) {
+        // Lógica para extraer el nombre de usuario del token JWT
+        // Puedes usar una biblioteca como jjwt para decodificar el token y obtener el nombre de usuario
+    }
+
+    private List<GrantedAuthority> extractAuthoritiesFromToken(String token) {
+        // Lógica para extraer los roles o autorizaciones del token JWT
+        // Puedes usar una biblioteca como jjwt para decodificar el token y obtener los roles o autorizaciones
     }
 }
